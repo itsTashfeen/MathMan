@@ -4,303 +4,284 @@ import sympy as sp
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import io
 import base64
+import json
+import uuid
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+import hashlib
 
 
-class MathProblemTracker:
-    def __init__(self):
-        self.user_problems = []
-        self.performance_data = {
-            'total_problems': 0,
-            'solved_problems': 0,
-            'difficulty_progression': {},
-            'success_rates': {}
+class UserProfile:
+    def __init__(self, username):
+        self.username = username
+        self.user_id = str(uuid.uuid4())
+        self.created_at = datetime.now()
+        self.total_problems_solved = 0
+        self.total_score = 0
+        self.problem_history = []
+        self.badges = set()
+        self.learning_path = {
+            'Algebra': {'mastery': 0, 'completed_problems': 0},
+            'Calculus': {'mastery': 0, 'completed_problems': 0},
+            'Trigonometry': {'mastery': 0, 'completed_problems': 0}
         }
-        self.user_score = 0
-        self.difficulty_level = 'Easy'
 
-    def record_problem_attempt(self, problem, solved, difficulty):
-        """Record user's attempt at a problem"""
-        self.user_problems.append({
-            'problem': problem,
-            'solved': solved,
-            'difficulty': difficulty,
-            'timestamp': datetime.now()
-        })
-
-        self.performance_data['total_problems'] += 1
+    def update_learning_path(self, problem_type, solved):
+        path = self.learning_path[problem_type]
+        path['completed_problems'] += 1
         if solved:
-            self.performance_data['solved_problems'] += 1
-            self.user_score += self._calculate_score(difficulty)
+            path['mastery'] = min(100, path['mastery'] + 10)
+            self.total_problems_solved += 1
 
-        self._update_difficulty_progression(difficulty, solved)
+        # Award badges based on performance
+        if path['mastery'] >= 50:
+            self.badges.add(f"{problem_type} Explorer")
+        if path['mastery'] >= 80:
+            self.badges.add(f"{problem_type} Master")
 
-    def _calculate_score(self, difficulty):
-        """Calculate score based on difficulty"""
-        difficulty_scores = {
-            'Easy': 10,
-            'Medium': 25,
-            'Hard': 50,
-            'Professional': 100
+    def to_dict(self):
+        return {
+            'username': self.username,
+            'user_id': self.user_id,
+            'created_at': str(self.created_at),
+            'total_problems_solved': self.total_problems_solved,
+            'total_score': self.total_score,
+            'learning_path': self.learning_path,
+            'badges': list(self.badges)
         }
-        return difficulty_scores.get(difficulty, 10)
-
-    def _update_difficulty_progression(self, difficulty, solved):
-        """Adjust difficulty based on performance"""
-        progression_map = {
-            'Easy': ['Easy', 'Medium'],
-            'Medium': ['Easy', 'Medium', 'Hard'],
-            'Hard': ['Medium', 'Hard', 'Professional'],
-            'Professional': ['Hard', 'Professional']
-        }
-
-        if difficulty not in self.performance_data['difficulty_progression']:
-            self.performance_data['difficulty_progression'][difficulty] = {
-                'attempts': 0,
-                'successes': 0
-            }
-
-        data = self.performance_data['difficulty_progression'][difficulty]
-        data['attempts'] += 1
-        if solved:
-            data['successes'] += 1
-
-        success_rate = data['successes'] / data['attempts'] if data['attempts'] > 0 else 0
-
-        # Dynamically adjust difficulty
-        if success_rate > 0.7 and difficulty != 'Professional':
-            self.difficulty_level = progression_map[difficulty][1]
-        elif success_rate < 0.3 and difficulty != 'Easy':
-            self.difficulty_level = progression_map[difficulty][0]
 
 
 class AdvancedMathProblemGenerator:
     def __init__(self):
-        self.problem_tracker = MathProblemTracker()
+        self.seed = random.randint(1, 10000)
+        random.seed(self.seed)
 
-        # Define problem types dictionary
         self.problem_types = {
-            'Algebra': self.generate_algebra_problem,
-            'Calculus': self.generate_calculus_problem,
-            'Trigonometry': self.generate_trigonometry_problem
-        }
-
-        # Define difficulty ranges dictionary
-        self.difficulty_ranges = {
-            'Easy': (1, 10),
-            'Medium': (10, 50),
-            'Hard': (50, 100),
-            'Professional': (100, 500)
+            'Algebra': {
+                'generator': self.generate_advanced_algebra_problem,
+                'subtypes': ['Linear', 'Quadratic', 'Polynomial', 'Exponential']
+            },
+            'Calculus': {
+                'generator': self.generate_advanced_calculus_problem,
+                'subtypes': ['Derivatives', 'Integrals', 'Limits', 'Series']
+            },
+            'Trigonometry': {
+                'generator': self.generate_advanced_trigonometry_problem,
+                'subtypes': ['Identities', 'Equations', 'Complex Functions']
+            }
         }
 
     def generate_problem_set(self, problem_type, difficulty, num_problems):
-        """Generate a set of math problems"""
-        problem_generator = self.problem_types.get(problem_type)
-        if not problem_generator:
-            raise ValueError(f"Unsupported problem type: {problem_type}")
+        random.seed(self.seed)
+        problem_generator = self.problem_types[problem_type]['generator']
 
         problems = []
         for _ in range(num_problems):
+            # Introduce more randomness
+            self.seed += 1
+            random.seed(self.seed)
+
             problem, solution = problem_generator(difficulty)
-            problems.append((problem, solution))
+            problems.append({
+                'id': str(uuid.uuid4()),
+                'problem': problem,
+                'solution': solution,
+                'difficulty': difficulty,
+                'solved': False
+            })
 
         return problems
 
-    def generate_algebra_problem(self, difficulty):
-        """Generate an algebra problem based on difficulty"""
+    def generate_advanced_algebra_problem(self, difficulty):
         x = sp.Symbol('x')
 
-        # Easy: Simple linear equations
         if difficulty == 'Easy':
-            a = random.randint(1, 10)
-            b = random.randint(1, 10)
-            problem = f"{a}x + {b} = {a * 5 + b}"
+            a, b = random.randint(1, 10), random.randint(1, 10)
+            problem = f"Solve: {a}x + {b} = {a * 5 + b}"
             solution = f"x = {5}"
 
-        # Medium: Quadratic equations
         elif difficulty == 'Medium':
-            a = random.randint(1, 5)
-            b = random.randint(1, 10)
-            c = random.randint(1, 10)
-            problem = f"{a}x^2 + {b}x + {c} = 0"
+            a, b, c = random.randint(1, 5), random.randint(1, 10), random.randint(1, 10)
+            problem = f"Solve the quadratic equation: {a}x^2 + {b}x + {c} = 0"
             solution = str(sp.solve(a * x ** 2 + b * x + c, x))
 
-        # Hard: More complex algebraic equations
         else:
-            a = random.randint(1, 10)
-            b = random.randint(1, 10)
-            problem = f"{a}x^3 - {b}x = {a * 27 - b * 3}"
+            a, b = random.randint(1, 10), random.randint(1, 10)
+            problem = f"Solve the equation: {a}x^3 - {b}x = {a * 27 - b * 3}"
             solution = f"x = {3}"
 
         return problem, solution
 
-    def generate_calculus_problem(self, difficulty):
-        """Generate a calculus problem based on difficulty"""
+    def generate_advanced_calculus_problem(self, difficulty):
         x = sp.Symbol('x')
 
-        # Easy: Simple derivatives
         if difficulty == 'Easy':
-            problem = "Differentiate f(x) = x^2 + 3x"
-            solution = "f'(x) = 2x + 3"
+            problem = "Find the derivative of f(x) = 3x^2 + 2x"
+            solution = "f'(x) = 6x + 2"
 
-        # Medium: Integrals
         elif difficulty == 'Medium':
-            problem = "Integrate f(x) = x^3 + 2x"
-            solution = "F(x) = (x^4)/4 + x^2 + C"
+            problem = "Integrate f(x) = x^3 + 2x^2 + 5"
+            solution = "F(x) = (x^4)/4 + (2x^3)/3 + 5x + C"
 
-        # Hard: More complex calculus
         else:
             problem = "Find the derivative of f(x) = sin(x) * e^x"
             solution = "f'(x) = cos(x) * e^x + sin(x) * e^x"
 
         return problem, solution
 
-    def generate_trigonometry_problem(self, difficulty):
-        """Generate a trigonometry problem based on difficulty"""
-        # Easy: Simple trig identities
+    def generate_advanced_trigonometry_problem(self, difficulty):
         if difficulty == 'Easy':
             problem = "Simplify sin(x)^2 + cos(x)^2"
             solution = "1"
 
-        # Medium: Trigonometric equations
         elif difficulty == 'Medium':
             problem = "Solve: sin(x) = 0.5"
             solution = "x = π/6 or 5π/6"
 
-        # Hard: Complex trig problems
         else:
             problem = "Find the period of f(x) = tan(2x)"
             solution = "π"
 
         return problem, solution
 
-    def generate_shareable_link(self, problem_set):
-        """Create a shareable link for problem set"""
-        # In a real-world scenario, this would be an actual URL generation
-        # Here we'll simulate it with base64 encoding
-        problem_str = str(problem_set)
-        return base64.b64encode(problem_str.encode()).decode()
+    def generate_advanced_visualization(self, user_profile):
+        # Create a more sophisticated visualization
+        plt.figure(figsize=(15, 10))
+        plt.subplot(2, 2, 1)
 
-    def export_to_pdf(self, problem_set, filename='math_problems.pdf'):
-        """Export problem set to PDF"""
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
+        # Mastery Level Heat Map
+        learning_data = pd.DataFrame.from_dict(user_profile.learning_path, orient='index')
+        sns.heatmap(learning_data[['mastery']], annot=True, cmap='YlGnBu', cbar=False)
+        plt.title('Learning Path Mastery Levels')
 
-        for i, (problem, solution) in enumerate(problem_set, 1):
-            story.append(Paragraph(f"Problem {i}: {problem}", styles['Title']))
-            story.append(Spacer(1, 12))
-            story.append(Paragraph(f"Solution: {solution}", styles['Normal']))
-            story.append(Spacer(1, 12))
+        plt.subplot(2, 2, 2)
+        # Problem Solving Distribution
+        badges_count = len(user_profile.badges)
+        plt.pie([badges_count, 10 - badges_count], labels=['Achieved', 'Pending'], autopct='%1.1f%%')
+        plt.title('Badge Progress')
 
-        doc.build(story)
-        pdf_bytes = buffer.getvalue()
-        buffer.close()
-
-        return pdf_bytes
-
-    def generate_performance_visualization(self):
-        """Create performance visualization"""
-        performance_data = self.problem_tracker.performance_data
-
-        plt.figure(figsize=(10, 6))
-        difficulties = list(performance_data['difficulty_progression'].keys())
-        success_rates = [
-            (data['successes'] / data['attempts']) * 100
-            for data in performance_data['difficulty_progression'].values()
-        ]
-
-        plt.bar(difficulties, success_rates)
-        plt.title('Problem Success Rates by Difficulty')
-        plt.xlabel('Difficulty Level')
-        plt.ylabel('Success Rate (%)')
+        plt.subplot(2, 2, 3)
+        # Problem Type Performance
+        problem_types = list(user_profile.learning_path.keys())
+        mastery_levels = [data['mastery'] for data in user_profile.learning_path.values()]
+        plt.bar(problem_types, mastery_levels)
+        plt.title('Problem Type Performance')
         plt.ylim(0, 100)
+
+        plt.subplot(2, 2, 4)
+        # Time Series of Problem Solving
+        if user_profile.problem_history:
+            timestamps = [entry['timestamp'] for entry in user_profile.problem_history]
+            solved = [entry['solved'] for entry in user_profile.problem_history]
+            plt.plot(timestamps, solved, marker='o')
+            plt.title('Problem Solving Trend')
+
+        plt.tight_layout()
 
         buffer = io.BytesIO()
         plt.savefig(buffer, format='png')
         buffer.seek(0)
         image_png = buffer.getvalue()
-        buffer.close()
+        plt.close()
 
         return base64.b64encode(image_png).decode()
 
 
 def main():
+    # Initialize session state for persistent data
+    if 'user_profile' not in st.session_state:
+        st.session_state.user_profile = UserProfile('Anonymous')
+
+    if 'current_problems' not in st.session_state:
+        st.session_state.current_problems = []
+
     st.title("🧮 Advanced Math Problem Generator")
+
+    # Sidebar for user management
+    st.sidebar.header("User Profile")
+    username = st.sidebar.text_input("Username", value=st.session_state.user_profile.username)
+    if st.sidebar.button("Update Profile"):
+        st.session_state.user_profile = UserProfile(username)
 
     generator = AdvancedMathProblemGenerator()
 
     # Tabs for different features
     tab1, tab2, tab3, tab4 = st.tabs([
         "Problem Generator",
-        "Performance Tracker",
-        "Export & Share",
-        "Visualizations"
+        "Performance Dashboard",
+        "Learning Analytics",
+        "Challenge Mode"
     ])
 
     with tab1:
-        # Problem generation interface
-        problem_type = st.selectbox("Problem Type", list(generator.problem_types.keys()))
-        difficulty = st.selectbox("Difficulty", list(generator.difficulty_ranges.keys()))
-        num_problems = st.slider("Number of Problems", 1, 20, 5)
+        st.header("Generate Math Problems")
+
+        # Problem generation interface with more options
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            problem_type = st.selectbox("Problem Type", list(generator.problem_types.keys()))
+        with col2:
+            difficulty = st.selectbox("Difficulty", ['Easy', 'Medium', 'Hard', 'Professional'])
+        with col3:
+            num_problems = st.slider("Number of Problems", 1, 20, 5)
 
         if st.button("Generate Problems"):
-            problems = generator.generate_problem_set(problem_type, difficulty, num_problems)
-
-            for i, (problem, solution) in enumerate(problems, 1):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**Problem {i}:** ${problem}$")
-                with col2:
-                    solved = st.checkbox(f"Solved Problem {i}")
-
-                if solved:
-                    generator.problem_tracker.record_problem_attempt(problem, True, difficulty)
-                    st.success("Great job!")
-
-                with st.expander(f"Solution {i}"):
-                    st.markdown(f"**Solution:** ${solution}$")
-
-    with tab2:
-        st.header("Performance Tracking")
-        tracker = generator.problem_tracker
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Problems", tracker.performance_data['total_problems'])
-        with col2:
-            st.metric("Solved Problems", tracker.performance_data['solved_problems'])
-
-        st.metric("Current Score", tracker.user_score)
-        st.metric("Recommended Difficulty", tracker.difficulty_level)
-
-    with tab3:
-        st.header("Export & Share")
-        if 'problems' in locals():
-            # PDF Export
-            pdf_export = generator.export_to_pdf(problems)
-            st.download_button(
-                label="Download PDF",
-                data=pdf_export,
-                file_name="math_problems.pdf",
-                mime="application/pdf"
+            st.session_state.current_problems = generator.generate_problem_set(
+                problem_type, difficulty, num_problems
             )
 
-            # Shareable Link
-            shareable_link = generator.generate_shareable_link(problems)
-            st.text_input("Shareable Link", value=shareable_link, disabled=True)
+        # Render problems with individual solve tracking
+        if st.session_state.current_problems:
+            for problem_data in st.session_state.current_problems:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**Problem:** ${problem_data['problem']}$")
+                with col2:
+                    solved = st.checkbox(
+                        "Solved",
+                        key=problem_data['id'],
+                        value=problem_data['solved']
+                    )
+
+                # Update problem solve status
+                problem_data['solved'] = solved
+
+                if solved:
+                    st.session_state.user_profile.update_learning_path(problem_type, True)
+
+                with st.expander(f"Solution"):
+                    st.markdown(f"**Solution:** ${problem_data['solution']}$")
+
+    with tab2:
+        st.header("Performance Dashboard")
+        profile = st.session_state.user_profile
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Problems Solved", profile.total_problems_solved)
+        with col2:
+            st.metric("Total Score", profile.total_score)
+        with col3:
+            st.metric("Active Badges", len(profile.badges))
+
+        st.subheader("Learning Path Progress")
+        progress_data = pd.DataFrame.from_dict(profile.learning_path, orient='index')
+        st.dataframe(progress_data)
+
+    with tab3:
+        st.header("Learning Analytics")
+        visualization = generator.generate_advanced_visualization(st.session_state.user_profile)
+        st.image(base64.b64decode(visualization))
 
     with tab4:
-        st.header("Performance Visualization")
-        performance_chart = generator.generate_performance_visualization()
-        st.image(base64.b64decode(performance_chart))
+        st.header("Challenge Mode (Coming Soon)")
+        st.info("Future collaborative and competitive features will be added here!")
 
 
 if __name__ == "__main__":
